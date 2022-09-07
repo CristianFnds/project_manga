@@ -1,17 +1,15 @@
 import express, { request, response } from 'express';
+import { routes } from './routes';
 
 const app = express();
+const cors = require('cors');
+
+
+app.use(express.json());
+app.use(express.text());
+
+app.use(routes);
+app.use(cors());
+
 
 app.listen(3333,()=>console.log("Server is running on port 3333")); 
-
-app.get("/",(request, response)=>{
-    return response.json({ message: "olá nlw 05"});
-})
-
-app.post("/",(request,response)=>{
-
-    var teste = {
-        message:"usuario criado com sucessos"
-    }
-    return response.json(teste);
-})
