@@ -38,12 +38,13 @@ class MangaController {
             const { title } = request.query;
             const { data } = await repository.obterMangas(title.toString());
 
-            var listaMangas = [];
+            const listPromisses=[];
 
-            for (const manga of data) {
-                listaMangas.push(await getInfoManga(manga.id))
-            };
+            for (const manga of data) 
+                listPromisses.push(getInfoManga(manga.id));
 
+            var listaMangas = await Promise.all(listPromisses)
+  
             const fim = performance.now();// todo remover
             console.log(`A operação levou ${fim - inicio} milissegundos`);// todo remover
             response.status(200).json(listaMangas);
