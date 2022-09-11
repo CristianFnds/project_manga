@@ -32,6 +32,9 @@ class MangaController {
 
     async search(request: Request, response: Response) {
         try {
+            
+            const inicio = performance.now();// todo remover
+
             const { title } = request.query;
             const { data } = await repository.obterMangas(title.toString());
 
@@ -41,6 +44,8 @@ class MangaController {
                 listaMangas.push(await getInfoManga(manga.id))
             };
 
+            const fim = performance.now();// todo remover
+            console.log(`A operação levou ${fim - inicio} milissegundos`);// todo remover
             response.status(200).json(listaMangas);
         } catch (error) {
             response.status(500).end("Erro ao obter lista de mangas");
