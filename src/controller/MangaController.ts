@@ -30,7 +30,7 @@ class MangaController {
         response.render('index');
     }
 
-    async all(request: Request, response: Response) {
+    async search(request: Request, response: Response) {
         try {
             const { title } = request.query;
             const { data } = await repository.obterMangas(title.toString());

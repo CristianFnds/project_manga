@@ -5,7 +5,7 @@ const routes = Router();
 const mangaController = new MangaController();
 
 routes.get("/", mangaController.index)
-routes.get("/manga", mangaController.all)
+routes.get("/manga", mangaController.search)
 routes.get("/show", mangaController.show)
 routes.get("/read", mangaController.read)
 routes.get("/nextChapter", mangaController.nextChapter)
