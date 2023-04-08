@@ -1,7 +1,12 @@
 import { Request, Response } from "express";
 import { MangaDexRepository } from "../repository/mangaDexRepository";
+import PDFDocument from 'pdfkit';
+import fs from 'fs';
+import axios from "axios";
+const imageSize = require('image-size')
 
 const repository = new MangaDexRepository();
+const dir = 'src/public/files';
 
 interface Manga {
     id: string;
@@ -24,6 +29,12 @@ interface Page {
     chapter: number
 }
 
+interface Imagem {
+    image: Buffer,
+    height: number,
+    width: number
+}
+
 class MangaController {
 
     async index(request: Request, response: Response) {
@@ -32,21 +43,11 @@ class MangaController {
 
     async search(request: Request, response: Response) {
         try {
-            
-            const inicio = performance.now();// todo remover
-
             const { title } = request.query;
             const { data } = await repository.obterMangas(title.toString());
 
-            const listPromisses=[];
+            var listaMangas = await getInfoMangas(data);
 
-            for (const manga of data) 
-                listPromisses.push(getInfoManga(manga.id));
-
-            var listaMangas = await Promise.all(listPromisses)
-  
-            const fim = performance.now();// todo remover
-            console.log(`A operação levou ${fim - inicio} milissegundos`);// todo remover
             response.status(200).json(listaMangas);
         } catch (error) {
             response.status(500).end("Erro ao obter lista de mangas");
@@ -57,7 +58,7 @@ class MangaController {
         try {
             const { manga_id } = request.query;
 
-            const manga = await getInfoManga(manga_id);
+            const manga = await getInfoManga(manga_id.toString());
             const capitulos = await getAllChapter(manga_id);
 
             response.render('show', { capitulos, manga });
@@ -81,9 +82,9 @@ class MangaController {
         var chapter = await getMangaIdByChapter(chapter_id)
         const capitulos = await getAllChapter(chapter.manga_id);
 
-        for(var i =0;i<capitulos.length;i++)
-            if(capitulos[i].id==chapter_id)
-                 return response.redirect(`/read?chapter_id=${capitulos[++i].id}`); 
+        for (var i = 0; i < capitulos.length; i++)
+            if (capitulos[i].id == chapter_id)
+                return response.redirect(`/read?chapter_id=${capitulos[++i].id}`);
     }
 
     async previousChapter(request: Request, response: Response) {
@@ -92,9 +93,82 @@ class MangaController {
         var chapter = await getMangaIdByChapter(chapter_id)
         const capitulos = await getAllChapter(chapter.manga_id);
 
-        for(var i =0;i<capitulos.length;i++)
-            if(capitulos[i].id==chapter_id)
-                 return response.redirect(`/read?chapter_id=${capitulos[--i].id}`); 
+        for (var i = 0; i < capitulos.length; i++)
+            if (capitulos[i].id == chapter_id)
+                return response.redirect(`/read?chapter_id=${capitulos[--i].id}`);
+    }
+
+    async downloadAllChapter(request: Request, response: Response) {
+        try {
+            const { id } = request.query;
+
+            var chapters = await getAllChapter(id);
+            var manga = await getInfoManga(id.toString());
+
+            var dirManga = `${dir}/${manga.name}`
+
+            if (!fs.existsSync(dirManga))
+                fs.mkdirSync(dirManga);
+
+            let i = 0;
+
+            for (const capitulo of chapters) {
+
+                const page = await repository.obterPaginas(capitulo.id);
+                var paginas = await getInfoPage(page.chapter, capitulo.id);
+
+                const file = `${dirManga}/Capitulo_${capitulo.chapter}.pdf`;
+
+                var pdfDoc = new PDFDocument({ autoFirstPage: false });
+
+                var imagens: Imagem[] = [];
+
+                let j = 0;
+                for (const pagina of paginas.data) {
+
+                    var { data } = await axios.get(`https://uploads.mangadex.org/data-saver/${paginas.hash}/${pagina}`, {
+                        responseType: 'arraybuffer'
+                    })
+
+                    var image = Buffer.from(data, 'base64');
+
+                    const dimension = imageSize(data)
+
+                    imagens.push(
+                        {
+                            image: image,
+                            height: dimension.height * 0.5,
+                            width: dimension.width * 0.5
+                        });
+
+                    console.log(`capitulo_${capitulo.chapter}:Page_${j}`);
+                
+                    if (j == 1) 
+                        break;
+                    j++;
+                }
+
+                pdfDoc.pipe(fs.createWriteStream(file));
+
+                for (const imagem of imagens) {
+                    pdfDoc.addPage({ size: [imagem.width, imagem.height] })
+                        .image(imagem.image, 0, 0, { width: imagem.width, heigth: imagem.height })
+                }
+
+                pdfDoc.end();
+
+                if (i == 0)
+                    break;
+                i++;
+            }
+
+            console.log("Termino")
+           return response.status(200).end();
+
+        } catch (error) {
+            console.log('deu erro');
+            response.status(500).end();
+        }
     }
 }
 
@@ -107,19 +181,46 @@ async function getMangaIdByChapter(chapter_id) {
 
 }
 
-async function getInfoManga(manga_id) {
-    const data = await repository.obterManga(manga_id.toString())
-    let cover_id = data.relationships.find(x => x.type == 'cover_art').id;
-    let cover = await repository.obterCover(cover_id);
+async function getInfoManga(manga_id: string) {
+
+    const manga = await repository.obterManga(manga_id.toString())
+
+    let cover_id = manga.relationships.find(x => x.type == 'cover_art').id;
+    var corver = await repository.obterCover(cover_id);
 
     var aux: Manga = {
-        id: data.id,
-        name: data.attributes.title.en,
+        id: manga.id,
+        name: manga.attributes.title.en,
         cover_art_id: cover_id,
-        cover_art_file_name: cover.attributes.fileName
+        cover_art_file_name: corver.attributes.fileName
     };
 
     return aux;
+}
+
+async function getInfoMangas(mangas) {
+
+    var promisses = [];
+    var listaMangas = [];
+
+    for (const manga of mangas) {
+        promisses.push(repository.obterCover(manga.relationships.find(x => x.type == 'cover_art').id));
+    }
+
+    var corvers = await Promise.all(promisses);
+
+    for (const manga of mangas) {
+        let cover_id = manga.relationships.find(x => x.type == 'cover_art').id;
+        var aux: Manga = {
+            id: manga.id,
+            name: manga.attributes.title.en,
+            cover_art_id: cover_id,
+            cover_art_file_name: corvers.find(x => x.id == cover_id).attributes.fileName
+        };
+        listaMangas.push(aux);
+    }
+
+    return listaMangas;
 }
 
 function getInfoChapter(chapter) {
@@ -158,7 +259,7 @@ async function getAllChapter(manga_id) {
 
 async function getInfoPage(page, chapter_id) {
 
- var chapter =  await getMangaIdByChapter(chapter_id)
+    var chapter = await getMangaIdByChapter(chapter_id)
 
     var pagina: Page = {
         chapter_id: chapter_id,

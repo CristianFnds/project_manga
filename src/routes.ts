@@ -10,5 +10,6 @@ routes.get("/show", mangaController.show)
 routes.get("/read", mangaController.read)
 routes.get("/nextChapter", mangaController.nextChapter)
 routes.get("/previousChapter", mangaController.previousChapter)
+routes.get("/downloadAllChapter", mangaController.downloadAllChapter)
 
 export { routes };

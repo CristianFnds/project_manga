@@ -24,7 +24,27 @@ $('document').ready(function () {
             });
     });
 
+    $("#download").click(function(){
+        let manga_id = $("#manga_id").val();
+        let url = `${baseurl}downloadAllChapter?id=${manga_id}`;
+
+        $.ajax(
+            {
+                url: url,
+                type: 'GET',
+                beforeSend: exibeLoading(false)
+            })
+            .done(function (mangas) {
+                removeLoading(mangas)
+            })
+            .fail(function (error) {
+                console.log("fail")
+                exibeMensagemErro(error.responseText)
+            }); 
+    });
+
     function exibirMangasPesquisa(data) {
+        
         $("#alerta").attr("hidden",true);
   
         var content = '<div class="row">';
@@ -41,19 +61,24 @@ $('document').ready(function () {
         $('#conteudo').html(content);
     }
 
-    function exibeLoading() {
-        $('#conteudo').html("")
+    function removeLoading(){
+        $("#loading").remove()
+    }
+    
+    function exibeLoading(clearContent = true) {
+        if(clearContent)
+            $('#conteudo').html("")
+       
         var html =
             '<div class="text-center" id="loading">' +
                 '<div class="spinner-border" style="width: 3rem; height: 3rem;" role="status"></div>' +
             '</div>';
 
-        $('#conteudo').append(html)
+        $('#conteudo').prepend(html)
     }
 
     function exibeMensagemErro(mensagem){
         $('#conteudo').html("")
         $("#alerta").attr("hidden",false).html("").append(mensagem);
     }
-
 });

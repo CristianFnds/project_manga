@@ -19,10 +19,10 @@
           <div class="margin" >
             <img src="https://uploads.mangadex.org/covers/<%= manga.id+'/'+manga.cover_art_file_name %>.256.jpg" alt="icone_manga" >
           </div>
-          
         </div>
         <div class="row" class="margin" >
-          <button type="button" class="btn btn-primary btn-lg btn-block">Baixar todos</button>
+          <button type="button" id="download" class="btn btn-primary btn-lg btn-block">Baixar todos</button>
+          <input type="hidden" id="manga_id" value="<%= manga.id %>"/>
         </div>
         <div id="conteudo" class="grid text-center">
             <table class="table table-striped">
