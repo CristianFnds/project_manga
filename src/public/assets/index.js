@@ -25,8 +25,10 @@ $('document').ready(function () {
     });
 
     $("#download").click(function(){
+      
         let manga_id = $("#manga_id").val();
-        let url = `${baseurl}downloadAllChapter?id=${manga_id}`;
+        let usuario = $("#usuario").val();
+        let url = `${baseurl}downloadAllChapter?id=${manga_id}&usuario=${usuario}`;
 
         $.ajax(
             {

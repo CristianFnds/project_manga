@@ -33,7 +33,7 @@ interface Imagem {
     image: Buffer,
     height: number,
     width: number,
-    page:number
+    page: number
 }
 
 class MangaController {
@@ -101,83 +101,100 @@ class MangaController {
 
     async downloadAllChapter(request: Request, response: Response) {
         try {
-            const { id } = request.query;
+
+            const { id, usuario } = request.query;
 
             var chapters = await getAllChapter(id);
             var manga = await getInfoManga(id.toString());
-
-            var dirManga = `${dir}/${manga.name}`
+            var dirManga = `C:\\Users\\${usuario}\\Downloads\\${manga.name}`
 
             if (!fs.existsSync(dirManga))
                 fs.mkdirSync(dirManga);
 
-            for (const capitulo of chapters) {
-
-                const page = await repository.obterPaginas(capitulo.id);
-                var paginas = await getInfoPage(page.chapter, capitulo.id);
-
-                const file = `${dirManga}/Capitulo_${capitulo.chapter}.pdf`;
-
-                var pdfDoc = new PDFDocument({ autoFirstPage: false });
-
-                var imagens: Imagem[] = [];
-
-                let indexPaginas = 0;
-
-                let promisses = [];
-
-                for (const pagina of paginas.data) {
-                    promisses.push(
-                        axios.get(`https://uploads.mangadex.org/data-saver/${paginas.hash}/${pagina}`, {
-                        responseType: 'arraybuffer'
-                    })
-                    );
-                }
-                
-                var respostas =  await Promise.all(promisses);
-
-                for (const pagina of paginas.data) {
-
-                    var { data } = respostas[indexPaginas];
-
-                    var image = Buffer.from(data, 'base64');
-
-                    const dimension = imageSize(data)
-
-                    imagens.push(
-                        {
-                            image: image,
-                            height: dimension.height * 0.5,
-                            width: dimension.width * 0.5,
-                            page: parseInt(pagina[0])
-                        });
-                    
-                    console.log(`capitulo_${capitulo.chapter}:Page_${indexPaginas}`);
-
-                    indexPaginas++;
-                }
-
-                pdfDoc.pipe(fs.createWriteStream(file));
-
-                for (const imagem of imagens) {
-                    pdfDoc.addPage({ size: [imagem.width, imagem.height] })
-                        .image(imagem.image, 0, 0, { width: imagem.width, heigth: imagem.height })
-                }
-
-                pdfDoc.end();
-                
-                break;
-            }
+            tentaBaixarCapitulo(chapters, dirManga);
 
             console.log("Termino")
-           return response.status(200).end();
+            return response.status(200).end();
 
         } catch (error) {
-            console.log('deu erro');
+            console.log('Houve um erro');
             response.status(500).end();
         }
     }
 }
+
+async function downloadPdf(file: string, imagens: Imagem[]) {
+    var pdfDoc = new PDFDocument({ autoFirstPage: false });
+    pdfDoc.pipe(fs.createWriteStream(file));
+
+    for (const imagem of imagens) {
+        pdfDoc.addPage({ size: [imagem.width, imagem.height] })
+            .image(imagem.image, 0, 0, { width: imagem.width, heigth: imagem.height })
+    }
+
+    pdfDoc.end();
+}
+
+async function tentaBaixarCapitulo(chapters: any[], dirManga: string, tentativa = 3) {
+
+    if (tentativa == 0)
+        return;
+
+    try {
+        for (const capitulo of chapters) {
+
+            const page = await repository.obterPaginas(capitulo.id);
+            var paginas = await getInfoPage(page.chapter, capitulo.id);
+
+            const file = `${dirManga}/Capitulo_${capitulo.chapter}.pdf`;
+
+            var imagens: Imagem[] = [];
+
+            let promisses = [];
+
+            for (const pagina of paginas.data) {
+                promisses.push(
+                    axios.get(`https://uploads.mangadex.org/data-saver/${paginas.hash}/${pagina}`, {
+                        responseType: 'arraybuffer'
+                    })
+                );
+            }
+
+            var respostas = await Promise.all(promisses);
+
+            let indexPaginas = 0;
+
+            for (const pagina of paginas.data) {
+
+                var { data } = respostas[indexPaginas];
+
+                var image = Buffer.from(data, 'base64');
+
+                const dimension = imageSize(data)
+
+                imagens.push(
+                    {
+                        image: image,
+                        height: dimension.height * 0.5,
+                        width: dimension.width * 0.5,
+                        page: parseInt(pagina[0])
+                    });
+
+                console.log(`capitulo_${capitulo.chapter}:Page_${indexPaginas}`);
+
+                indexPaginas++;
+            }
+
+            downloadPdf(file, imagens);
+            break;
+        }
+    } catch (error) {
+        console.log(`Houve um erro Tentativa: ${tentativa} `);
+        tentaBaixarCapitulo(chapters, dirManga, tentativa--);
+    }
+
+}
+
 
 async function getMangaIdByChapter(chapter_id) {
     var chapter = await repository.obterCapitulo(chapter_id.toString())
