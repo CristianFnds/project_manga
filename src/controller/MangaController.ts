@@ -32,7 +32,8 @@ interface Page {
 interface Imagem {
     image: Buffer,
     height: number,
-    width: number
+    width: number,
+    page:number
 }
 
 class MangaController {
@@ -110,8 +111,6 @@ class MangaController {
             if (!fs.existsSync(dirManga))
                 fs.mkdirSync(dirManga);
 
-            let i = 0;
-
             for (const capitulo of chapters) {
 
                 const page = await repository.obterPaginas(capitulo.id);
@@ -123,12 +122,23 @@ class MangaController {
 
                 var imagens: Imagem[] = [];
 
-                let j = 0;
-                for (const pagina of paginas.data) {
+                let indexPaginas = 0;
 
-                    var { data } = await axios.get(`https://uploads.mangadex.org/data-saver/${paginas.hash}/${pagina}`, {
+                let promisses = [];
+
+                for (const pagina of paginas.data) {
+                    promisses.push(
+                        axios.get(`https://uploads.mangadex.org/data-saver/${paginas.hash}/${pagina}`, {
                         responseType: 'arraybuffer'
                     })
+                    );
+                }
+                
+                var respostas =  await Promise.all(promisses);
+
+                for (const pagina of paginas.data) {
+
+                    var { data } = respostas[indexPaginas];
 
                     var image = Buffer.from(data, 'base64');
 
@@ -138,14 +148,13 @@ class MangaController {
                         {
                             image: image,
                             height: dimension.height * 0.5,
-                            width: dimension.width * 0.5
+                            width: dimension.width * 0.5,
+                            page: parseInt(pagina[0])
                         });
+                    
+                    console.log(`capitulo_${capitulo.chapter}:Page_${indexPaginas}`);
 
-                    console.log(`capitulo_${capitulo.chapter}:Page_${j}`);
-                
-                    if (j == 1) 
-                        break;
-                    j++;
+                    indexPaginas++;
                 }
 
                 pdfDoc.pipe(fs.createWriteStream(file));
@@ -156,10 +165,8 @@ class MangaController {
                 }
 
                 pdfDoc.end();
-
-                if (i == 0)
-                    break;
-                i++;
+                
+                break;
             }
 
             console.log("Termino")
